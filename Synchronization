@@ -1,0 +1,164 @@
+/*
+ * RollerCoaster_Solution.java
+ * CSCI 330 - Assignment 3: Synchronization
+ * 
+ * REFERENCE SOLUTION - Use this to understand how synchronization should work
+ * 
+ * This solution uses semaphores and mutexes to synchronize the train and passengers.
+ */
+
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+public class RollerCoaster_Solution {
+    
+    // Shared variables
+    public static int passengersWaiting = 0;
+    public static int passengersOnTrain = 0;
+    public static int passengersOffTrain = 0;
+    public static int trainCapacity;
+    
+    // Synchronization primitives
+    public static Semaphore trainReady = new Semaphore(0);    // Signals train is ready to depart
+    public static Semaphore trainDone = new Semaphore(0);     // Signals train finished ride
+    public static Semaphore allAboard = new Semaphore(0);     // Signals all passengers boarded
+    public static Semaphore allOff = new Semaphore(0);        // Signals all passengers off
+    public static Lock mutex = new ReentrantLock();            // Protects shared counters
+    
+    /**
+     * Main method
+     */
+    public static void main(String[] args) {
+        if (args.length != 2) {
+            System.err.println("Usage: java RollerCoaster_Solution <num_passengers> <train_capacity>");
+            System.exit(1);
+        }
+        
+        int numPassengers = Integer.parseInt(args[0]);
+        trainCapacity = Integer.parseInt(args[1]);
+        
+        if (trainCapacity > numPassengers) {
+            System.err.println("Error: Train capacity cannot exceed number of passengers");
+            System.exit(1);
+        }
+        
+        // Print header
+        System.out.println("Passenger:\t\t\t\t\t| Train:");
+        System.out.println("Wandering\tIn Line\t\tOn Train\tOff Train\t| Loading\tRunning\t\tUnLoading");
+        System.out.println("----------------------------------------------------------------+-----------------------------------------");
+        
+        // Create and start the train thread
+        TrainThread_Sol train = new TrainThread_Sol();
+        train.start();
+        
+        // Create and start passenger threads
+        PassengerThread_Sol[] passengers = new PassengerThread_Sol[numPassengers];
+        for (int i = 0; i < numPassengers; i++) {
+            passengers[i] = new PassengerThread_Sol(i);
+            passengers[i].start();
+        }
+    }
+}
+
+/**
+ * TrainThread with proper synchronization
+ */
+class TrainThread_Sol extends Thread {
+    
+    @Override
+    public void run() {
+        while (true) {
+            // Loading phase - wait for train to be full
+            System.out.println("\t\t\t\t\t\t\t| Train");
+            
+            try {
+                // Wait until train is full
+                RollerCoaster_Solution.allAboard.acquire();
+                
+                // Running phase
+                System.out.println("\t\t\t\t\t\t\t|\t\tTrain");
+                Thread.sleep(1000);  // Simulate ride
+                
+                // Signal passengers that ride is done
+                for (int i = 0; i < RollerCoaster_Solution.trainCapacity; i++) {
+                    RollerCoaster_Solution.trainDone.release();
+                }
+                
+                // Unloading phase - wait for all passengers to get off
+                System.out.println("\t\t\t\t\t\t\t|\t\t\t\tTrain");
+                RollerCoaster_Solution.allOff.acquire();
+                
+                Thread.sleep(500);  // Brief pause before next cycle
+                
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+}
+
+/**
+ * PassengerThread with proper synchronization
+ */
+class PassengerThread_Sol extends Thread {
+    private int id;
+    
+    public PassengerThread_Sol(int id) {
+        this.id = id;
+    }
+    
+    @Override
+    public void run() {
+        while (true) {
+            try {
+                // Wandering phase
+                System.out.println("Passenger " + id);
+                Thread.sleep((int)(Math.random() * 1000));
+                
+                // In line phase
+                System.out.println("\t\tPassenger " + id);
+                
+                // Try to board
+                RollerCoaster_Solution.mutex.lock();
+                try {
+                    RollerCoaster_Solution.passengersOnTrain++;
+                    
+                    // If train is full, signal it can depart
+                    if (RollerCoaster_Solution.passengersOnTrain == RollerCoaster_Solution.trainCapacity) {
+                        RollerCoaster_Solution.allAboard.release();
+                    }
+                } finally {
+                    RollerCoaster_Solution.mutex.unlock();
+                }
+                
+                // On train phase
+                System.out.println("\t\t\t\tPassenger " + id);
+                
+                // Wait for ride to complete
+                RollerCoaster_Solution.trainDone.acquire();
+                
+                // Off train phase
+                System.out.println("\t\t\t\t\t\tPassenger " + id);
+                
+                // Signal getting off
+                RollerCoaster_Solution.mutex.lock();
+                try {
+                    RollerCoaster_Solution.passengersOnTrain--;
+                    
+                    // If all passengers are off, signal train
+                    if (RollerCoaster_Solution.passengersOnTrain == 0) {
+                        RollerCoaster_Solution.allOff.release();
+                    }
+                } finally {
+                    RollerCoaster_Solution.mutex.unlock();
+                }
+                
+                Thread.sleep(100);
+                
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+}
