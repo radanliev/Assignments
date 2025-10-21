@@ -1,0 +1,74 @@
+#!/bin/bash
+
+################################################################################
+# Assignment 1: Word Counter in Bash
+# CSCI 330: Operating Systems
+#
+# This script takes one or more file names as command-line arguments and prints:
+# 1. The name of the file
+# 2. The number of lines and words in the file
+# 3. A list of all words and their occurrence counts (case-insensitive)
+#
+# Usage: ./mywc.sh file1 [file2 ...]
+################################################################################
+
+# Check if any arguments were provided
+if [ $# -eq 0 ]; then
+    # No parameters provided, exit without output
+    exit 0
+fi
+
+# Process each file provided as an argument
+for file in "$@"; do
+    # Check if file exists and is readable
+    if [ ! -f "$file" ]; then
+        echo "Error: File '$file' not found or is not a regular file"
+        echo ""
+        continue
+    fi
+    
+    if [ ! -r "$file" ]; then
+        echo "Error: File '$file' is not readable"
+        echo ""
+        continue
+    fi
+    
+    # Print file name
+    echo "File: $file"
+    echo "===================="
+    
+    # Count lines and words using wc
+    # -l counts lines, -w counts words
+    line_count=$(wc -l < "$file")
+    word_count=$(wc -w < "$file")
+    
+    echo "Lines: $line_count"
+    echo "Words: $word_count"
+    echo ""
+    
+    # List all words and their occurrence counts
+    echo "Word Frequency:"
+    echo "--------------------"
+    
+    # Process the file:
+    # 1. cat - read the file
+    # 2. tr - convert to lowercase and replace non-alphabetic chars with newlines
+    # 3. tr - squeeze multiple newlines into single newlines
+    # 4. grep - remove empty lines
+    # 5. sort - sort the words alphabetically
+    # 6. uniq -c - count unique occurrences
+    # 7. sort -rn - sort by count (descending)
+    cat "$file" | \
+        tr '[:upper:]' '[:lower:]' | \
+        tr -s '[:space:]' '\n' | \
+        grep -v '^$' | \
+        sort | \
+        uniq -c | \
+        sort -rn | \
+        while read count word; do
+            printf "%5d  %s\n" "$count" "$word"
+        done
+    
+    echo ""
+    echo ""
+done
