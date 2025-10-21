@@ -1,0 +1,177 @@
+/*
+ * Assignment 2: Word Counter in C
+ * CSCI 330: Operating Systems
+ *
+ * This program counts occurrences of specified words from standard input.
+ * 
+ * Usage: ./main word1 word2 word3 ...
+ *        (Enter text lines, one per line. Enter '.' on a line by itself to end input.)
+ *
+ * Expected output (to stdout):
+ *   word1 - 3
+ *   word2 - 1
+ *   word3 - 0
+ *
+ * Error messages should go to stderr.
+ * Help messages should go to stdout.
+ *
+ * Command-line options:
+ *   -h           : Display help message
+ *   -fFILENAME   : Write output to specified file
+ *   -test NAME   : Run specific test (for testrunner)
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+#define MAX_WORDS 5
+#define MAX_WORD_LEN 50
+#define MAX_LINE_LEN 1024
+
+/* Structure to hold word and its count */
+typedef struct {
+    char word[MAX_WORD_LEN];
+    int count;
+} WordCount;
+
+/* Function prototypes */
+void print_help(void);
+void count_words(WordCount *words, int num_words, FILE *output);
+int process_line(char *line, WordCount *words, int num_words);
+
+/*
+ * Main function
+ */
+int main(int argc, char *argv[]) {
+    WordCount words[MAX_WORDS];
+    int num_words = 0;
+    FILE *output = stdout;
+    char *output_filename = NULL;
+    int i;
+    
+    /* Check for test mode (for testrunner) */
+    if (argc > 1 && strcmp(argv[1], "-test") == 0) {
+        /* This will be handled by testrunner */
+        return 0;
+    }
+    
+    /* Parse command-line arguments */
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-h") == 0) {
+            print_help();
+            return 0;
+        } else if (strncmp(argv[i], "-f", 2) == 0) {
+            /* Extract filename from argument */
+            output_filename = argv[i] + 2;
+            if (strlen(output_filename) == 0) {
+                printf("Error: -f option requires a filename\n");
+                return 1;
+            }
+            /* Open output file */
+            output = fopen(output_filename, "w");
+            if (output == NULL) {
+                printf("Error: Cannot open file '%s' for writing\n", output_filename);
+                return 1;
+            }
+        } else {
+            /* This is a word to count */
+            if (num_words >= MAX_WORDS) {
+                printf("Error: Maximum of %d words supported\n", MAX_WORDS);
+                return 1;
+            }
+            /* BUG 1: Potential buffer overflow */
+            strcpy(words[num_words].word, argv[i]);
+            words[num_words].count = 0;
+            num_words++;
+        }
+    }
+    
+    /* Check if any words were specified */
+    if (num_words == 0) {
+        printf("Error: No words specified to count\n");
+        print_help();
+        return 1;
+    }
+    
+    /* Count words from standard input */
+    count_words(words, num_words, output);
+    
+    /* Close output file if one was opened */
+    if (output != stdout) {
+        fclose(output);
+    }
+    
+    return 0;
+}
+
+/*
+ * Print help message
+ */
+void print_help(void) {
+    printf("Usage: ./main [OPTIONS] word1 word2 ...\n");
+    printf("Count occurrences of specified words from standard input.\n");
+    printf("\n");
+    printf("Options:\n");
+    printf("  -h           Display this help message\n");
+    printf("  -fFILENAME   Write output to specified file\n");
+    printf("\n");
+    printf("Enter text lines (one per line). Enter '.' on a line by itself to end input.\n");
+}
+
+/*
+ * Count words from standard input
+ */
+void count_words(WordCount *words, int num_words, FILE *output) {
+    char line[MAX_LINE_LEN];
+    int i;
+    
+    printf("Enter text (enter '.' on a line by itself to end input):\n");
+    
+    /* Read lines from stdin until '.' is entered */
+    while (1) {
+        /* BUG 2: Using gets() which is unsafe */
+        gets(line);
+        
+        /* Check for end of input */
+        if (strcmp(line, ".") == 0) {
+            break;
+        }
+        
+        /* Process the line - BUG 3: Only processes one word per line */
+        process_line(line, words, num_words);
+    }
+    
+    /* Print results */
+    for (i = 0; i < num_words; i++) {
+        fprintf(output, "%s - %d\n", words[i].word, words[i].count);
+    }
+}
+
+/*
+ * Process a single line and update word counts
+ * Returns: number of words found in the line
+ */
+int process_line(char *line, WordCount *words, int num_words) {
+    int i;
+    int found_count = 0;
+    
+    /* Convert line to lowercase for case-insensitive comparison */
+    char *p = line;
+    while (*p) {
+        *p = tolower(*p);
+        p++;
+    }
+    
+    /* Check if the line contains any of our target words */
+    for (i = 0; i < num_words; i++) {
+        /* BUG 4: This only matches if the line equals the word exactly */
+        if (strcmp(line, words[i].word) == 0) {
+            words[i].count++;
+            found_count++;
+        }
+    }
+    
+    return found_count;
+}
